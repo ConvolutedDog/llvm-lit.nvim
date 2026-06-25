@@ -1,0 +1,7 @@
+llvm-lit-commands	llvm-lit.txt	/*llvm-lit-commands*
+llvm-lit-config	llvm-lit.txt	/*llvm-lit-config*
+llvm-lit-introduction	llvm-lit.txt	/*llvm-lit-introduction*
+llvm-lit-keymaps	llvm-lit.txt	/*llvm-lit-keymaps*
+llvm-lit-output	llvm-lit.txt	/*llvm-lit-output*
+llvm-lit-setup	llvm-lit.txt	/*llvm-lit-setup*
+llvm-lit.nvim	llvm-lit.txt	/*llvm-lit.nvim*

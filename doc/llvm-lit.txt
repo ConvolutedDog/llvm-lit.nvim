@@ -1,0 +1,88 @@
+*llvm-lit.nvim*                                           Neovim plugin
+
+==============================================================================
+INTRODUCTION                                            *llvm-lit-introduction*
+
+Run LLVM Lit tests from the current buffer with per-project configuration.
+
+Projects are stored in ~/.config/llvm-lit.nvim/projects.json (or
+$XDG_CONFIG_HOME/llvm-lit.nvim/projects.json).
+
+Each project maps a repository root to:
+  - lit testsuite path (directory containing lit.site.cfg.py)
+  - filter_depth (how many trailing path segments form --filter)
+  - cwd (where llvm-lit is executed)
+
+The project root is auto-detected from .git; the testsuite path is inferred
+by searching the build tree for lit.site.cfg.py.
+
+==============================================================================
+COMMANDS                                                *llvm-lit-commands*
+
+:LlvmLitRun          Run the current test without dump (~<leader>rT)
+:LlvmLitRunDump      Run + FILECHECK_OPTS=--dump-input=always (~<leader>rt)
+:LlvmLitSetup        Configure lit testsuite for the current project
+:LlvmLitProjects     Browse, edit, or delete saved projects (j/k to navigate)
+:LlvmLitConfig       Show path to projects.json
+:LlvmLitHelp         Open this help
+
+==============================================================================
+KEYMAPS                                                 *llvm-lit-keymaps*
+
+Default keymaps (set on Lit test file buffers):
+
+  <leader>rt   Run with FILECHECK_OPTS=--dump-input=always (full output)
+  <leader>rT   Run without dump
+  <leader>ro   Jump to the [llvm-lit] output buffer
+
+Override in setup():
+>
+  keymaps = {
+    run_dump     = '<leader>rt',
+    run          = '<leader>rT',
+    focus_output = '<leader>ro',
+  }
+<
+
+==============================================================================
+OUTPUT BUFFER                                           *llvm-lit-output*
+
+Test output is written to a read-only listed buffer named [llvm-lit].
+It appears in the bufferline alongside regular files.
+
+  <S-l>        Next buffer (bufferline) — move to [llvm-lit]
+  <S-h>        Previous buffer — return to test file
+  <leader>ro   Jump directly to the output buffer
+  <leader>bd   Close the output buffer (or any normal buffer-close mapping)
+
+==============================================================================
+SETUP                                                   *llvm-lit-setup*
+
+1. Open a Lit test file (.mlir, .ll, .py, …).
+2. Run :LlvmLitSetup.
+3. Confirm or edit the prompted values:
+     Project root      — detected from .git
+     Lit testsuite     — inferred from build tree
+     filter_depth      — trailing segments used as --filter (default 2)
+     Working directory — defaults to project root
+
+==============================================================================
+CONFIGURATION                                           *llvm-lit-config*
+
+>
+  require('llvm-lit').setup({
+    llvm_lit       = '/path/to/build/bin/llvm-lit',
+    lit_args       = '-a',
+    filecheck_opts = '--dump-input=always',
+    filter_depth   = 2,
+    extensions     = { 'mlir', 'py', 'll', 'td', 'fir', 'sv', 'lib', 'test', 'aag' },
+    keymaps = {
+      run_dump     = '<leader>rt',
+      run          = '<leader>rT',
+      focus_output = '<leader>ro',
+    },
+  })
+<
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
