@@ -142,16 +142,30 @@ function M.run(opts)
 
   local buf = open_output_buf(header)
 
+  -- Neovim's non-buffered jobstart may split a single long line across multiple
+  -- on_stdout calls.  The last element of each `data` array is either '' (line
+  -- ended with \n) or a partial line to be joined with the next chunk.
+  local function make_handler(pending_ref)
+    return vim.schedule_wrap(function(_, data)
+      if not data then return end
+      data[1] = pending_ref[1] .. data[1]   -- prepend any leftover from last chunk
+      pending_ref[1] = table.remove(data)   -- last element = new partial line
+      if #data > 0 then buf_append(buf, data) end
+    end)
+  end
+
+  local out_pending = { '' }
+  local err_pending = { '' }
+
   local job = vim.fn.jobstart({ 'bash', '-c', cmd }, {
     cwd = info.cwd,
     env = { PYTHONUNBUFFERED = '1', COLORTERM = 'truecolor' },
-    on_stdout = vim.schedule_wrap(function(_, data)
-      if data then buf_append(buf, data) end
-    end),
-    on_stderr = vim.schedule_wrap(function(_, data)
-      if data then buf_append(buf, data) end
-    end),
+    on_stdout = make_handler(out_pending),
+    on_stderr = make_handler(err_pending),
     on_exit = vim.schedule_wrap(function(_, code)
+      -- Flush any remaining partial lines.
+      if out_pending[1] ~= '' then buf_append(buf, { out_pending[1] }) end
+      if err_pending[1] ~= '' then buf_append(buf, { err_pending[1] }) end
       local level = code == 0 and vim.log.levels.INFO or vim.log.levels.ERROR
       vim.notify(string.format('[llvm-lit] exit %d — %s', code, info.filter), level)
     end),
