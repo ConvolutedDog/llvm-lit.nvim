@@ -7,7 +7,7 @@ Inspired by [mlir-inc-previewer.nvim](../mlir-inc-previewer.nvim).
 
 ## Features
 
-- `<leader>rt` — run with `FILECHECK_OPTS=--dump-input=always` (full output)
+- `<leader>rt` — run with `FILECHECK_OPTS=--dump-input=always` + **standalone output** (see below)
 - `<leader>rT` — run without dump
 - `<leader>ro` — jump to output buffer
 - Output shown in a regular listed buffer (`[llvm-lit]`); navigate with `<S-h>`/`<S-l>` like any file
@@ -97,7 +97,7 @@ Config is saved to:
 | Command            | Action                                              |
 |--------------------|-----------------------------------------------------|
 | `:LlvmLitRun`      | Run test (no dump)                                  |
-| `:LlvmLitRunDump`  | Run + `FILECHECK_OPTS=--dump-input=always`          |
+| `:LlvmLitRunDump`  | Run + `FILECHECK_OPTS=--dump-input=always` + standalone output |
 | `:LlvmLitSetup`    | Configure / update current project                  |
 | `:LlvmLitProjects` | Browse, edit, or delete saved projects (j/k to nav) |
 | `:LlvmLitConfig`   | Show path to `projects.json`                        |
@@ -107,9 +107,42 @@ Config is saved to:
 
 Output appears in a read-only listed buffer named `[llvm-lit]`:
 
-- Navigate to it with `<S-l>` (bufferline next) or `:LlvmLitConfig` → `<leader>ro`
+- Navigate to it with `<S-l>` (bufferline next) or `<leader>ro`
 - Navigate back with `<S-h>` (bufferline previous)
 - Close with `<leader>bd` (or any normal buffer-close mapping)
+
+### Dump mode and standalone output (`<leader>rt`)
+
+`<leader>rt` sets `FILECHECK_OPTS=--dump-input=always` before calling `llvm-lit`.
+For projects that execute RUN commands via bash (e.g. CIRCT), FileCheck inherits
+this variable and the full `Input was: <<< ... >>>` dump appears in the normal lit
+output section.
+
+**For MLIR / llvm-project this does not work.** LLVM's lit intentionally strips
+`FILECHECK_OPTS` from the subprocess environment to keep the test suite hermetic
+(see [D65121](https://reviews.llvm.org/D65121) and
+[6cecd3c](https://github.com/llvm/llvm-project/commit/6cecd3c)).
+As a result the dump never appears in the lit output for these projects.
+
+To work around this, `<leader>rt` automatically appends a **standalone output**
+section at the bottom of the buffer after lit finishes.  It parses the executed
+commands from the lit verbose log (bash `+ …` xtrace lines or
+`# executed command: …` entries), removes FileCheck from the pipeline, and
+re-runs the remaining tool (e.g. `mlir-opt`, `circt-opt`) directly so you can
+see the full IR output without FileCheck noise.
+
+```
+────────────────────────────────────────────────────────────────────────
+  Standalone Output
+  $ /path/to/mlir-opt file.mlir --some-pass
+  NOTE: FileCheck removed from the RUN pipeline; not all scenarios
+        are covered. Refer to the full lit output above for details.
+────────────────────────────────────────────────────────────────────────
+<clean IR output here>
+```
+
+Multiple RUN lines each get their own standalone section (`1 / N`, `2 / N`, …).
+Conditional blocks (`%if …`) only appear if lit actually executed them.
 
 ## Configuration
 
