@@ -25,11 +25,36 @@ Inspired by [mlir-inc-previewer.nvim](../mlir-inc-previewer.nvim).
 
 ## Installation
 
-lazy.nvim:
+### lazy.nvim (from GitHub)
 
 ```lua
 {
-  dir = '/path/to/llvm-lit.nvim',  -- local clone
+  'ConvolutedDog/llvm-lit.nvim',
+  cmd = {
+    'LlvmLitRun', 'LlvmLitRunDump', 'LlvmLitSetup',
+    'LlvmLitProjects', 'LlvmLitConfig', 'LlvmLitHelp',
+  },
+  ft = { 'mlir', 'py', 'll', 'td' },
+  opts = {
+    -- llvm_lit is optional if llvm-lit is already on your PATH.
+    llvm_lit = '/path/to/build/bin/llvm-lit',
+    keymaps = {
+      run_dump     = '<leader>rt',  -- full output (most common)
+      run          = '<leader>rT',  -- without dump
+      focus_output = '<leader>ro',  -- jump to output buffer
+    },
+  },
+  config = function(_, opts)
+    require('llvm-lit').setup(opts)
+  end,
+}
+```
+
+### lazy.nvim (local clone / development)
+
+```lua
+{
+  dir = vim.fn.expand('~/path/to/llvm-lit.nvim'),
   name = 'llvm-lit.nvim',
   cmd = {
     'LlvmLitRun', 'LlvmLitRunDump', 'LlvmLitSetup',
@@ -37,11 +62,12 @@ lazy.nvim:
   },
   ft = { 'mlir', 'py', 'll', 'td' },
   opts = {
+    -- llvm_lit is optional if llvm-lit is already on your PATH.
     llvm_lit = '/path/to/build/bin/llvm-lit',
     keymaps = {
-      run_dump     = '<leader>rt',  -- full output (most common)
-      run          = '<leader>rT',  -- without dump
-      focus_output = '<leader>ro',  -- jump to output buffer
+      run_dump     = '<leader>rt',
+      run          = '<leader>rT',
+      focus_output = '<leader>ro',
     },
   },
   config = function(_, opts)
@@ -104,23 +130,28 @@ require('llvm-lit').setup({
 
 ## Example `projects.json`
 
+Saved automatically by `:LlvmLitSetup` to
+`~/.config/llvm-lit.nvim/projects.json`
+(or `$XDG_CONFIG_HOME/llvm-lit.nvim/projects.json`).
+Keys are stored alphabetically by `vim.json.encode`.
+
 ```json
 {
-  "version": 1,
   "projects": {
     "/Users/you/circt": {
-      "name": "circt",
-      "lit_testsuite": "/Users/you/circt/build/test",
+      "cwd": "/Users/you/circt",
       "filter_depth": 2,
-      "cwd": "/Users/you/circt"
+      "lit_testsuite": "/Users/you/circt/build/test",
+      "name": "circt"
     },
     "/Users/you/llvm-project": {
-      "name": "mlir",
-      "lit_testsuite": "/Users/you/llvm-project/build/tools/mlir/test",
+      "cwd": "/Users/you/llvm-project",
       "filter_depth": 2,
-      "cwd": "/Users/you/llvm-project"
+      "lit_testsuite": "/Users/you/llvm-project/build/tools/mlir/test",
+      "name": "mlir"
     }
-  }
+  },
+  "version": 1
 }
 ```
 
