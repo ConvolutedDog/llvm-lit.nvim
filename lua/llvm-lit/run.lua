@@ -1,6 +1,7 @@
 -- Copyright (c) 2026 Jianchao Yang
 -- Licensed under the MIT License - see the LICENSE file for details.
 
+local commands = require('llvm-lit.commands')
 local config = require('llvm-lit.config')
 local project = require('llvm-lit.project')
 
@@ -163,10 +164,10 @@ function M.run(opts)
 
   local out_pending = { '' }
   local err_pending = { '' }
-  -- Collect all output lines (stdout + stderr) so we can parse the bash trace
-  -- for the opt command.  lit writes the "+ ..." xtrace lines into its stdout
-  -- (under "Command Output (stderr):") when running with -a.
-  local all_lines = opts.dump_input and {} or nil
+  -- Collect all output lines (stdout + stderr) so we can parse executed commands.
+  -- lit writes "+ ..." (bash xtrace) or "# executed command: ..." (internal shell).
+  local collect = opts.dump_input or opts.collect_output
+  local all_lines = collect and {} or nil
 
   local job = vim.fn.jobstart({ 'bash', '-c', cmd }, {
     cwd = info.cwd,
@@ -193,22 +194,12 @@ function M.run(opts)
       -- Two lit output formats are handled:
       --   bash xtrace  : "+ <cmd>"          (CIRCT and similar projects)
       --   lit verbose  : "# executed command: <cmd>"  (MLIR / llvm-project)
+      if opts.on_complete and all_lines then
+        opts.on_complete(code, all_lines, info, buf)
+      end
+
       if opts.dump_input and all_lines then
-        local opt_cmds = {}
-        local seen = {}
-        local function try_add(cmd_str)
-          if not cmd_str:lower():match('filecheck') and not seen[cmd_str] then
-            seen[cmd_str] = true
-            table.insert(opt_cmds, cmd_str)
-          end
-        end
-        for _, line in ipairs(all_lines) do
-          if line:match('^%+ ') then
-            try_add(line:sub(3))
-          elseif line:match('^# executed command: ') then
-            try_add(line:sub(21))
-          end
-        end
+        local opt_cmds = commands.parse_executed_commands(all_lines)
 
         if #opt_cmds > 0 and buf_alive(buf) then
           -- Run all opt commands sequentially, chaining via on_exit callbacks.

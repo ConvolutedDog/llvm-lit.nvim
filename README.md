@@ -9,6 +9,7 @@ Inspired by [mlir-inc-previewer.nvim](../mlir-inc-previewer.nvim).
 
 - `<leader>rt` — run with `FILECHECK_OPTS=--dump-input=always` + **standalone output** (see below)
 - `<leader>rT` — run without dump
+- `<leader>rd` — run lit, then **debug** the expanded tool command with nvim-dap (see [Debugging](#debugging))
 - `<leader>ro` — jump to output buffer
 - Output shown in a regular listed buffer (`[llvm-lit]`); navigate with `<S-h>`/`<S-l>` like any file
 - Per-project **lit testsuite** path and **filter depth** configuration
@@ -22,6 +23,88 @@ Inspired by [mlir-inc-previewer.nvim](../mlir-inc-previewer.nvim).
 - Neovim >= 0.10
 - `llvm-lit` on `PATH` or configured via `setup()`
 - Project built so `lit.site.cfg.py` exists under the testsuite directory
+- **Debugging only:** [nvim-dap](https://github.com/mfussenegger/nvim-dap) + `lldb` (built in on macOS)
+- **Debugging only:** CIRCT/MLIR built with debug symbols (`RelWithDebInfo` or `Debug`)
+
+## Debugging
+
+`<leader>rd` / `:LlvmLitDebug` runs `llvm-lit` the same way as a normal test run, parses the
+**expanded** tool commands from lit's verbose output (`+ …` or `# executed command: …`), lets you
+pick a RUN line / pipeline segment, then launches **nvim-dap** on that command (not on `llvm-lit`
+itself). This works for CIRCT, MLIR, and other lit-based projects because substitutions come from
+lit.
+
+### 1. Install nvim-dap (lazy.nvim)
+
+Add to your Neovim config (alongside llvm-lit.nvim):
+
+```lua
+{
+  'mfussenegger/nvim-dap',
+  dependencies = {
+    'mfussenegger/nvim-dap-ui',
+  },
+  config = function()
+    local dap = require('dap')
+    local dapui = require('dapui')
+    dapui.setup()
+    dap.listeners.after.event_initialized['dapui_config'] = dapui.open
+    dap.listeners.before.event_terminated['dapui_config'] = dapui.close
+    dap.listeners.before.event_exited['dapui_config'] = dapui.close
+
+  -- LazyVim / Mason: enable lang.clangd extra or `:MasonInstall codelldb`.
+  -- Adapter is auto-detected; llvm-lit re-registers codelldb with Mason's absolute path.
+  end,
+}
+```
+
+**LazyVim users:** install CodeLLDB via Mason if you have not already:
+
+```vim
+:MasonInstall codelldb
+```
+
+The plugin resolves the Mason binary automatically (LazyVim's default `command = "codelldb"` often fails with `ECONNREFUSED` when `codelldb` is not on your shell `PATH`).
+
+### 2. Build with symbols
+
+```bash
+cmake -G Ninja llvm/llvm -B build \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  ...
+ninja -C build bin/circt-opt bin/llvm-lit
+```
+
+### 3. Use
+
+1. `:LlvmLitSetup` once for the project (if not done already).
+2. Open a `.mlir` test, set breakpoints in **C++ source** (not the `.mlir` file). Prefer absolute paths:
+   `:e /path/to/circt/tools/circt-opt/call.cpp` or `:e /path/to/circt/lib/...`
+3. Press `<leader>rd` — lit runs, then pick the command to debug.
+4. Use `<leader>dc` (map yourself) or dap-ui to continue / step.
+
+Suggested dap keymaps (add to your config):
+
+```lua
+vim.keymap.set('n', '<leader>dc', function() require('dap').continue() end, { desc = 'DAP continue' })
+vim.keymap.set('n', '<leader>db', function() require('dap').toggle_breakpoint() end, { desc = 'DAP breakpoint' })
+vim.keymap.set('n', '<leader>dn', function() require('dap').step_over() end, { desc = 'DAP step over' })
+vim.keymap.set('n', '<leader>di', function() require('dap').step_into() end, { desc = 'DAP step into' })
+```
+
+### Docker / remote build paths
+
+If breakpoints land in the wrong file, map the build tree to your checkout:
+
+```lua
+require('llvm-lit').setup({
+  debug = {
+    -- map: debug-info path prefix -> local checkout (NOT build/ -> source/)
+    source_map = { ['/work/circt'] = '/Users/you/circt' },
+  },
+})
+```
 
 ## Installation
 
@@ -31,7 +114,7 @@ Inspired by [mlir-inc-previewer.nvim](../mlir-inc-previewer.nvim).
 {
   'ConvolutedDog/llvm-lit.nvim',
   cmd = {
-    'LlvmLitRun', 'LlvmLitRunDump', 'LlvmLitSetup',
+    'LlvmLitRun', 'LlvmLitRunDump', 'LlvmLitDebug', 'LlvmLitSetup',
     'LlvmLitProjects', 'LlvmLitConfig', 'LlvmLitHelp',
   },
   ft = { 'mlir', 'py', 'll', 'td' },
@@ -41,6 +124,7 @@ Inspired by [mlir-inc-previewer.nvim](../mlir-inc-previewer.nvim).
     keymaps = {
       run_dump     = '<leader>rt',  -- full output (most common)
       run          = '<leader>rT',  -- without dump
+      debug        = '<leader>rd',  -- lit → nvim-dap
       focus_output = '<leader>ro',  -- jump to output buffer
     },
   },
@@ -57,7 +141,7 @@ Inspired by [mlir-inc-previewer.nvim](../mlir-inc-previewer.nvim).
   dir = vim.fn.expand('~/path/to/llvm-lit.nvim'),
   name = 'llvm-lit.nvim',
   cmd = {
-    'LlvmLitRun', 'LlvmLitRunDump', 'LlvmLitSetup',
+    'LlvmLitRun', 'LlvmLitRunDump', 'LlvmLitDebug', 'LlvmLitSetup',
     'LlvmLitProjects', 'LlvmLitConfig', 'LlvmLitHelp',
   },
   ft = { 'mlir', 'py', 'll', 'td' },
@@ -67,6 +151,7 @@ Inspired by [mlir-inc-previewer.nvim](../mlir-inc-previewer.nvim).
     keymaps = {
       run_dump     = '<leader>rt',
       run          = '<leader>rT',
+      debug        = '<leader>rd',
       focus_output = '<leader>ro',
     },
   },
@@ -98,6 +183,7 @@ Config is saved to:
 |--------------------|-----------------------------------------------------|
 | `:LlvmLitRun`      | Run test (no dump)                                  |
 | `:LlvmLitRunDump`  | Run + `FILECHECK_OPTS=--dump-input=always` + standalone output |
+| `:LlvmLitDebug`    | Run lit, pick expanded command, launch nvim-dap    |
 | `:LlvmLitSetup`    | Configure / update current project                  |
 | `:LlvmLitProjects` | Browse, edit, or delete saved projects (j/k to nav) |
 | `:LlvmLitConfig`   | Show path to `projects.json`                        |
@@ -156,10 +242,18 @@ require('llvm-lit').setup({
   keymaps = {
     run_dump     = '<leader>rt',
     run          = '<leader>rT',
+    debug        = '<leader>rd',
     focus_output = '<leader>ro',
+  },
+  debug = {
+    dap_type = 'lldb',
+    stop_on_entry = false,
+    -- source_map = { ['/build/path'] = '/local/checkout' },
   },
 })
 ```
+
+See [Debugging](#debugging) for nvim-dap setup.
 
 ## Example `projects.json`
 
@@ -195,6 +289,9 @@ Keys are stored alphabetically by `vim.json.encode`.
 | `lit.site.cfg.py not found` | Run `ninja` / `cmake` first; fix path in `:LlvmLitSetup` |
 | `Project not registered` | Run `:LlvmLitSetup` once per repo root |
 | `llvm-lit not found` | Set `llvm_lit` to an absolute path in `setup()` |
+| `nvim-dap is not installed` | Add `mfussenegger/nvim-dap` to your plugin list (see Debugging) |
+| Breakpoints not hit | Build with `RelWithDebInfo`; set breakpoints in **C++** (not `.mlir`); codelldb syncs via LLDB on continue — look for `synced N lldb breakpoint(s)` notification |
+| `no executed tool commands found` | Ensure `lit_args` includes `-a` or `-vv` |
 
 ## License
 

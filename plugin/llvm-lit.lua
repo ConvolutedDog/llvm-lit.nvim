@@ -18,6 +18,9 @@ cmd('LlvmLitRun', function() api().run() end,
 cmd('LlvmLitRunDump', function() api().run_dump() end,
   { desc = 'llvm-lit: run with FILECHECK_OPTS dump-input' })
 
+cmd('LlvmLitDebug', function() api().debug() end,
+  { desc = 'llvm-lit: run lit then debug expanded tool command' })
+
 cmd('LlvmLitSetup', function() api().setup_project() end,
   { desc = 'llvm-lit: configure lit testsuite for current project' })
 

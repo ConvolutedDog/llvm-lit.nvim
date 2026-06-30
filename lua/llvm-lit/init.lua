@@ -2,6 +2,7 @@
 -- Licensed under the MIT License - see the LICENSE file for details.
 
 local config = require('llvm-lit.config')
+local debug = require('llvm-lit.debug')
 local project = require('llvm-lit.project')
 local run = require('llvm-lit.run')
 local ui = require('llvm-lit.ui')
@@ -32,6 +33,19 @@ function M.run_dump(opts)
   }, opts or {}))
 end
 
+local function on_needs_setup()
+  if vim.fn.confirm(
+        'Lit testsuite is not configured for this project. Set it up now?', '&Yes\n&No', 1) == 1 then
+    ui.setup_project()
+  end
+end
+
+function M.debug(opts)
+  debug.run(vim.tbl_extend('force', {
+    on_needs_setup = on_needs_setup,
+  }, opts or {}))
+end
+
 local function buf_matches(bufnr)
   local name = vim.api.nvim_buf_get_name(bufnr)
   return project.is_lit_test_file(name)
@@ -47,6 +61,8 @@ local function set_buffer_keymaps(bufnr)
   map(k.run, function() M.run({ bufnr = bufnr }) end, 'llvm-lit: run test')
   map(k.run_dump, function() M.run_dump({ bufnr = bufnr }) end,
     'llvm-lit: run test (FileCheck dump-input)')
+  map(k.debug, function() M.debug({ bufnr = bufnr }) end,
+    'llvm-lit: debug tool from lit output')
   map(k.focus_output, function() run.focus_output() end, 'llvm-lit: focus output buffer')
 end
 
@@ -60,6 +76,16 @@ end
 
 function M.setup(opts)
   config.options = vim.tbl_deep_extend('force', vim.deepcopy(config.defaults), opts or {})
+
+  debug.setup_highlights(config.options.debug)
+
+  local hl_group = vim.api.nvim_create_augroup('LlvmLitDapHl', { clear = true })
+  vim.api.nvim_create_autocmd('ColorScheme', {
+    group = hl_group,
+    callback = function()
+      debug.setup_highlights(config.options.debug)
+    end,
+  })
 
   local group = vim.api.nvim_create_augroup('LlvmLit', { clear = true })
   local patterns = ext_patterns()

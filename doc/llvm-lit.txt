@@ -21,6 +21,7 @@ COMMANDS                                                *llvm-lit-commands*
 
 :LlvmLitRun          Run the current test without dump (~<leader>rT)
 :LlvmLitRunDump      Run + FILECHECK_OPTS=--dump-input=always (~<leader>rt)
+:LlvmLitDebug        Run lit, then debug expanded tool with nvim-dap (~<leader>rd)
 :LlvmLitSetup        Configure lit testsuite for the current project
 :LlvmLitProjects     Browse, edit, or delete saved projects (j/k to navigate)
 :LlvmLitConfig       Show path to projects.json
@@ -33,6 +34,7 @@ Default keymaps (set on Lit test file buffers):
 
   <leader>rt   Run with FILECHECK_OPTS=--dump-input=always (full output)
   <leader>rT   Run without dump
+  <leader>rd   Run lit, pick tool command, launch nvim-dap (see |llvm-lit-debugging|)
   <leader>ro   Jump to the [llvm-lit] output buffer
 
 Override in setup():
@@ -40,9 +42,19 @@ Override in setup():
   keymaps = {
     run_dump     = '<leader>rt',
     run          = '<leader>rT',
+    debug        = '<leader>rd',
     focus_output = '<leader>ro',
   }
 <
+
+==============================================================================
+DEBUGGING                                               *llvm-lit-debugging*
+
+:LlvmLitDebug (~<leader>rd) runs llvm-lit, parses expanded commands from lit
+output, then starts nvim-dap on the selected tool (circt-opt, mlir-opt, …).
+
+Requires nvim-dap, lldb, and a build with debug symbols (RelWithDebInfo).
+See the plugin README for install steps.
 
 ==============================================================================
 OUTPUT BUFFER                                           *llvm-lit-output*
@@ -79,7 +91,12 @@ CONFIGURATION                                           *llvm-lit-config*
     keymaps = {
       run_dump     = '<leader>rt',
       run          = '<leader>rT',
+      debug        = '<leader>rd',
       focus_output = '<leader>ro',
+    },
+    debug = {
+      dap_type = 'lldb',
+      stop_on_entry = false,
     },
   })
 <
