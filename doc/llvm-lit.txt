@@ -95,8 +95,15 @@ CONFIGURATION                                           *llvm-lit-config*
       focus_output = '<leader>ro',
     },
     debug = {
-      dap_type = 'lldb',
-      stop_on_entry = false,
+      dap_type = nil,              -- nil = auto (codelldb > lldb)
+      stop_on_entry = true,        -- stop at main() to set breakpoints
+      breakpoint_mode = 'file',
+      initialize_timeout_sec = 120,
+      highlights = {
+        current_line  = { fg = '#1a1b26', bg = '#FFCC00', bold = true },
+        stopped_sign  = '\226\150\185',
+        stopped_sign_hl = 'LlvmLitDebugSign',
+      },
     },
   })
 <

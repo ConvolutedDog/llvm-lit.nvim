@@ -1,16 +1,47 @@
 -- Copyright (c) 2026 Jianchao Yang
 -- Licensed under the MIT License - see the LICENSE file for details.
 
+-- =============================================================================
+-- lua/llvm-lit/ui.lua — Interactive UI helpers (setup wizard, project manager)
+-- =============================================================================
+-- This module provides the interactive user-facing commands:
+--   • setup_project()  — :LlvmLitSetup wizard: walks the user through
+--     configuring a lit testsuite for their project (name, suite path,
+--     filter depth, working directory).
+--   • manage_projects() — :LlvmLitProjects picker: lists all registered
+--     projects and lets the user view details, edit, or delete them.
+--   • show_config_path() — :LlvmLitConfig: display the path to projects.json.
+--
+-- The module uses a simple custom floating-window picker (open_picker) rather
+-- than vim.ui.select, because it predates Neovim 0.10's vim.ui.select and
+-- provides explicit j/k navigation with custom key actions (e, d, <CR>).
+--
+-- Data flow:
+--   setup_project()
+--     → reads current file path
+--     → auto-detects repo root and testsuite (from project.lua)
+--     → prompts user for each field (with defaults)
+--     → validates the configuration (via project.validate_project)
+--     → saves to store (via store.set_project)
+-- =============================================================================
+
 local config  = require('llvm-lit.config')
 local project = require('llvm-lit.project')
 local store   = require('llvm-lit.store')
 
 local M = {}
 
+-- ---------------------------------------------------------------------------
+-- Notification / input helpers
+-- ---------------------------------------------------------------------------
+
 local function notify(msg, level)
   vim.notify('[llvm-lit] ' .. msg, level or vim.log.levels.INFO, { title = 'llvm-lit' })
 end
 
+--- Prompt the user for text input with a completion-enabled prompt.
+-- Wraps vim.fn.input with pcall (safe against <C-c> cancellation).
+-- Returns the trimmed string, or nil if cancelled.
 local function input(prompt, default)
   default = default or ''
   local ok, result = pcall(vim.fn.input, {
@@ -24,18 +55,27 @@ local function input(prompt, default)
   return vim.trim(result)
 end
 
+--- Prompt for a yes/no confirmation.
 local function confirm(msg)
   return vim.fn.confirm(msg, '&Yes\n&No', 2) == 1
 end
 
 -- ---------------------------------------------------------------------------
--- Simple floating-window picker (no vim.ui.select, pure j/k navigation)
+-- Simple floating-window picker
 -- ---------------------------------------------------------------------------
+-- A reusable helper that displays a list of items in a floating window with
+-- j/k navigation and custom key bindings.
+--
+-- This is used by manage_projects() and (in debug.lua) by the command picker.
+-- Why not vim.ui.select? This predates it and gives us full control over
+-- keymaps (we need 'd' delete, 'e' edit, etc. per-item).
+--
+-- @param title:       window title string
+-- @param items:       list of { label = string, ... }
+-- @param keymaps_spec: table mapping key → function(item, close_fn)
+-- @param hint:        optional footer text
 local function open_picker(title, items, keymaps_spec, hint)
-  -- items: list of { label = string, ... arbitrary fields ... }
-  -- keymaps_spec: { key = function(item, close_fn) }
-  -- hint: optional string shown at the bottom
-
+  -- Build the display lines: each item gets a 2-space indent.
   local lines = {}
   for _, item in ipairs(items) do
     table.insert(lines, '  ' .. item.label)
@@ -43,6 +83,7 @@ local function open_picker(title, items, keymaps_spec, hint)
   table.insert(lines, '')
   table.insert(lines, '  ' .. (hint or 'q quit'))
 
+  -- Compute window dimensions from content.
   local max_w = 0
   for _, l in ipairs(lines) do
     if #l > max_w then max_w = #l end
@@ -50,12 +91,14 @@ local function open_picker(title, items, keymaps_spec, hint)
   max_w = math.min(max_w + 4, vim.o.columns - 4)
   local height = math.min(#lines, vim.o.lines - 6)
 
+  -- Create the scratch buffer.
   local buf = vim.api.nvim_create_buf(false, true)
   vim.bo[buf].bufhidden = 'wipe'
   vim.bo[buf].modifiable = true
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.bo[buf].modifiable = false
 
+  -- Create the floating window, centered on screen.
   local win = vim.api.nvim_open_win(buf, true, {
     relative   = 'editor',
     row        = math.floor((vim.o.lines - height) / 2),
@@ -70,18 +113,21 @@ local function open_picker(title, items, keymaps_spec, hint)
   vim.wo[win].cursorline = true
   vim.api.nvim_win_set_cursor(win, { 1, 0 })
 
+  -- Close the picker window.
   local function close()
     if vim.api.nvim_win_is_valid(win) then
       vim.api.nvim_win_close(win, true)
     end
   end
 
+  -- Get the item at the current cursor position.
   local function cur_item()
     if not vim.api.nvim_win_is_valid(win) then return nil end
     local row = vim.api.nvim_win_get_cursor(win)[1]
     return items[row]
   end
 
+  -- Move cursor by delta (clamped to item bounds, skipping footer lines).
   local function move(delta)
     if not vim.api.nvim_win_is_valid(win) then return end
     local row = vim.api.nvim_win_get_cursor(win)[1]
@@ -89,6 +135,7 @@ local function open_picker(title, items, keymaps_spec, hint)
     vim.api.nvim_win_set_cursor(win, { new, 0 })
   end
 
+  -- Navigation keymaps.
   local o = { buffer = buf, nowait = true }
   vim.keymap.set('n', 'j',      function() move(1) end,  o)
   vim.keymap.set('n', 'k',      function() move(-1) end, o)
@@ -97,15 +144,16 @@ local function open_picker(title, items, keymaps_spec, hint)
   vim.keymap.set('n', 'q',     close, o)
   vim.keymap.set('n', '<Esc>', close, o)
 
+  -- Custom action keymaps (from keymaps_spec).
   for key, fn in pairs(keymaps_spec) do
-    local k = key  -- capture
+    local k = key
     vim.keymap.set('n', k, function()
       local item = cur_item()
       if item then fn(item, close) end
     end, o)
   end
 
-  -- Close when focus leaves the picker.
+  -- Auto-close when focus leaves (user clicks another window, etc.).
   vim.api.nvim_create_autocmd('BufLeave', {
     buffer   = buf,
     once     = true,
@@ -114,9 +162,22 @@ local function open_picker(title, items, keymaps_spec, hint)
 end
 
 -- ---------------------------------------------------------------------------
--- Public API
+-- :LlvmLitSetup — Interactive project configuration wizard
 -- ---------------------------------------------------------------------------
 
+--- Walk the user through setting up a new lit testsuite project.
+-- This is invoked automatically when `run()` detects an unregistered project,
+-- or manually via :LlvmLitSetup.
+--
+-- The wizard prompts for:
+--   1. Project root (auto-detected or manual)
+--   2. Project name (derived from directory name)
+--   3. Lit testsuite path (auto-suggested via project.suggest_lit_testsuite)
+--   4. Filter depth (number of path segments for --filter)
+--   5. Working directory (cwd for the lit command)
+--
+-- Each field defaults to the existing configuration if re-editing.
+-- Configuration is validated before saving.
 function M.setup_project(opts)
   opts = opts or {}
   local bufnr = opts.bufnr or 0
@@ -126,6 +187,7 @@ function M.setup_project(opts)
     return
   end
 
+  -- Repository root: auto-detect or prompt.
   local repo_root = opts.repo_root or project.detect_repo_root(path)
   if not repo_root then
     repo_root = input('Project root: ', vim.fs.dirname(path))
@@ -139,16 +201,19 @@ function M.setup_project(opts)
   local state    = store.load()
   local existing = state.projects[repo_root]
 
+  -- Project name.
   local default_name = existing and existing.name or vim.fn.fnamemodify(repo_root, ':t')
   local name = input('Project name: ', default_name)
   if not name then notify('Cancelled', vim.log.levels.WARN); return end
 
+  -- Lit testsuite path (where lit.site.cfg.py lives).
   local default_suite = existing and existing.lit_testsuite
     or project.suggest_lit_testsuite(repo_root, path)
   local suite = input('Lit testsuite path (directory containing lit.site.cfg.py): ', default_suite)
   if not suite then notify('Cancelled', vim.log.levels.WARN); return end
   suite = vim.fs.normalize(vim.fn.fnamemodify(suite, ':p'))
 
+  -- Filter depth.
   local default_depth = tostring((existing and existing.filter_depth) or config.options.filter_depth)
   local depth_str = input('Filter path segments (last N levels): ', default_depth)
   if not depth_str then notify('Cancelled', vim.log.levels.WARN); return end
@@ -158,6 +223,7 @@ function M.setup_project(opts)
     return
   end
 
+  -- Working directory.
   local default_cwd = existing and existing.cwd or repo_root
   local cwd = input('Working directory (cd): ', default_cwd)
   if not cwd then notify('Cancelled', vim.log.levels.WARN); return end
@@ -165,6 +231,7 @@ function M.setup_project(opts)
 
   local proj = { name = name, lit_testsuite = suite, filter_depth = depth, cwd = cwd }
 
+  -- Validate before saving.
   local ok, err = project.validate_project(proj)
   if not ok then
     notify('Configuration validation failed:\n' .. err, vim.log.levels.ERROR)
@@ -176,6 +243,17 @@ function M.setup_project(opts)
     name, repo_root, suite, store.path()))
 end
 
+-- ---------------------------------------------------------------------------
+-- :LlvmLitProjects — List / view / edit / delete projects
+-- ---------------------------------------------------------------------------
+
+--- Display a picker with all registered projects.
+-- Each entry shows name, filter depth, and testsuite path.
+-- Actions:
+--   <CR> — show full project details
+--   e    — edit this project (re-runs setup_project with defaults)
+--   d    — delete this project (with confirmation)
+--   q    — close
 function M.manage_projects()
   local state = store.load()
   local roots = vim.tbl_keys(state.projects)
@@ -223,6 +301,10 @@ function M.manage_projects()
     end,
   }, 'Enter show info · e edit · d delete · q close')
 end
+
+-- ---------------------------------------------------------------------------
+-- :LlvmLitConfig — Show state file path
+-- ---------------------------------------------------------------------------
 
 function M.show_config_path()
   notify('Config file: ' .. store.path())
