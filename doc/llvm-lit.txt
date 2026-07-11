@@ -24,6 +24,7 @@ COMMANDS                                                *llvm-lit-commands*
 :LlvmLitDebug        Run lit, then debug expanded tool with nvim-dap (~<leader>rd)
 :LlvmLitSetup        Configure lit testsuite for the current project
 :LlvmLitProjects     Browse, edit, or delete saved projects (j/k to navigate)
+:LlvmLitDelConfig    Delete a saved project (picker list)
 :LlvmLitConfig       Show path to projects.json
 :LlvmLitHelp         Open this help
 

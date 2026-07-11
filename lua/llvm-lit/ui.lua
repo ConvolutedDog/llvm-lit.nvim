@@ -73,15 +73,30 @@ end
 -- @param title:       window title string
 -- @param items:       list of { label = string, ... }
 -- @param keymaps_spec: table mapping key → function(item, close_fn)
--- @param hint:        optional footer text
-local function open_picker(title, items, keymaps_spec, hint)
-  -- Build the display lines: each item gets a 2-space indent.
+-- @param opts:        optional { header = {line,...}, hint = string }
+local function open_picker(title, items, keymaps_spec, opts)
+  opts = opts or {}
+  local header_lines = opts.header or {}
+  local hint = opts.hint
+
+  -- Build the display lines.
   local lines = {}
+  -- Header (if any): separated by a dashed line.
+  if #header_lines > 0 then
+    for _, h in ipairs(header_lines) do
+      table.insert(lines, '  ' .. h)
+    end
+    table.insert(lines, '  ' .. string.rep('─', 34))
+  end
+  -- Item lines: each gets a 2-space indent.
   for _, item in ipairs(items) do
     table.insert(lines, '  ' .. item.label)
   end
   table.insert(lines, '')
   table.insert(lines, '  ' .. (hint or 'q quit'))
+
+  local header_count = #header_lines > 0 and (#header_lines + 1) or 0
+  local first_item = header_count + 1
 
   -- Compute window dimensions from content.
   local max_w = 0
@@ -111,7 +126,14 @@ local function open_picker(title, items, keymaps_spec, hint)
     title_pos  = 'center',
   })
   vim.wo[win].cursorline = true
-  vim.api.nvim_win_set_cursor(win, { 1, 0 })
+  vim.api.nvim_win_set_cursor(win, { first_item, 0 })
+
+  -- Dim the header lines.
+  if header_count > 0 then
+    for i = 1, header_count do
+      vim.api.nvim_buf_add_highlight(buf, -1, 'Comment', i - 1, 0, -1)
+    end
+  end
 
   -- Close the picker window.
   local function close()
@@ -120,18 +142,20 @@ local function open_picker(title, items, keymaps_spec, hint)
     end
   end
 
-  -- Get the item at the current cursor position.
+  -- Get the item at the current cursor position (account for header offset).
   local function cur_item()
     if not vim.api.nvim_win_is_valid(win) then return nil end
     local row = vim.api.nvim_win_get_cursor(win)[1]
-    return items[row]
+    local idx = row - header_count
+    if idx < 1 or idx > #items then return nil end
+    return items[idx]
   end
 
-  -- Move cursor by delta (clamped to item bounds, skipping footer lines).
+  -- Move cursor by delta (clamped to item bounds, skipping header/footer).
   local function move(delta)
     if not vim.api.nvim_win_is_valid(win) then return end
     local row = vim.api.nvim_win_get_cursor(win)[1]
-    local new = math.max(1, math.min(#items, row + delta))
+    local new = math.max(first_item, math.min(first_item + #items - 1, row + delta))
     vim.api.nvim_win_set_cursor(win, { new, 0 })
   end
 
@@ -299,7 +323,7 @@ function M.manage_projects()
         vim.schedule(function() M.manage_projects() end)
       end
     end,
-  }, 'Enter show info · e edit · d delete · q close')
+  }, { hint = 'Enter show info · e edit · d delete · q close' })
 end
 
 -- ---------------------------------------------------------------------------
@@ -341,7 +365,12 @@ function M.delete_project_config()
         close()
       end
     end,
-  }, 'Enter delete · q cancel')
+  }, {
+    header = {
+      string.format('%-16s  %-5s  %s', 'Project Name', 'Depth', 'Lit Testsuite Path'),
+    },
+    hint = 'Enter delete · q cancel',
+  })
 end
 
 -- ---------------------------------------------------------------------------

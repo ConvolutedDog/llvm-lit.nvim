@@ -40,7 +40,7 @@ any file, or close with `<leader>bd`.
   'ConvolutedDog/llvm-lit.nvim',
   cmd = {
     'LlvmLitRun', 'LlvmLitRunDump', 'LlvmLitDebug', 'LlvmLitSetup',
-    'LlvmLitProjects', 'LlvmLitConfig', 'LlvmLitHelp',
+    'LlvmLitProjects', 'LlvmLitDelConfig', 'LlvmLitConfig', 'LlvmLitHelp',
   },
   ft = { 'mlir', 'py', 'll', 'td', 'fir', 'sv' },
   opts = {},
@@ -148,7 +148,7 @@ automatically. Look for the notification:
   'ConvolutedDog/llvm-lit.nvim',
   cmd = {
     'LlvmLitRun', 'LlvmLitRunDump', 'LlvmLitDebug', 'LlvmLitSetup',
-    'LlvmLitProjects', 'LlvmLitConfig', 'LlvmLitHelp',
+    'LlvmLitProjects', 'LlvmLitDelConfig', 'LlvmLitConfig', 'LlvmLitHelp',
   },
   ft = { 'mlir', 'py', 'll', 'td', 'fir', 'sv', 'lib', 'test', 'aag' },
   opts = {
@@ -174,7 +174,7 @@ automatically. Look for the notification:
   name = 'llvm-lit.nvim',
   cmd = {
     'LlvmLitRun', 'LlvmLitRunDump', 'LlvmLitDebug', 'LlvmLitSetup',
-    'LlvmLitProjects', 'LlvmLitConfig', 'LlvmLitHelp',
+    'LlvmLitProjects', 'LlvmLitDelConfig', 'LlvmLitConfig', 'LlvmLitHelp',
   },
   ft = { 'mlir', 'py', 'll', 'td', 'fir', 'sv', 'lib', 'test', 'aag' },
   opts = { llvm_lit = '/path/to/build/bin/llvm-lit' },
@@ -209,6 +209,7 @@ Config is saved to:
 | `:LlvmLitDebug` | Run lit, pick expanded tool command, launch nvim-dap |
 | `:LlvmLitSetup` | Configure / update current project |
 | `:LlvmLitProjects` | Browse, edit, or delete saved projects |
+| `:LlvmLitDelConfig` | Delete a saved project (picker list) |
 | `:LlvmLitConfig` | Show path to `projects.json` |
 | `:LlvmLitHelp` | Open this help |
 
