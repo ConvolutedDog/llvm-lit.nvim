@@ -96,7 +96,7 @@ end
 function M.save(state)
   M.ensure_dir()
   local path = state_path()
-  local encoded = vim.json.encode(state, { indent = true })
+  local encoded = vim.json.encode(state, { indent = "  " })
   vim.fn.writefile(vim.split(encoded, '\n'), path)
 end
 

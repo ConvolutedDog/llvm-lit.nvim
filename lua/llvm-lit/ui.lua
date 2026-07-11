@@ -303,6 +303,48 @@ function M.manage_projects()
 end
 
 -- ---------------------------------------------------------------------------
+-- :LlvmLitDelConfig — Quick project deletion
+-- ---------------------------------------------------------------------------
+
+--- Display a picker listing all registered project roots.
+-- Press <CR> on a project to delete it (with confirmation).
+-- Falls back to ":LlvmLitProjects" style management if needed.
+function M.delete_project_config()
+  local state = store.load()
+  local roots = vim.tbl_keys(state.projects)
+  table.sort(roots)
+
+  if #roots == 0 then
+    notify('No saved projects to delete; open a test file and run :LlvmLitSetup', vim.log.levels.WARN)
+    return
+  end
+
+  local items = {}
+  for _, root in ipairs(roots) do
+    local p = state.projects[root]
+    local depth = p.filter_depth or config.options.filter_depth
+    items[#items + 1] = {
+      label   = string.format('%-16s  depth=%-2s  %s',
+        p.name or vim.fn.fnamemodify(root, ':t'), depth, p.lit_testsuite or ''),
+      root    = root,
+      project = p,
+    }
+  end
+
+  open_picker('Delete Project', items, {
+    ['<CR>'] = function(item, close)
+      local p = item.project
+      local root = item.root
+      if confirm(string.format('Delete project "%s"?\nroot: %s', p.name or '', root)) then
+        store.delete_project(state, root)
+        notify('Deleted: ' .. root)
+        close()
+      end
+    end,
+  }, 'Enter delete · q cancel')
+end
+
+-- ---------------------------------------------------------------------------
 -- :LlvmLitConfig — Show state file path
 -- ---------------------------------------------------------------------------
 

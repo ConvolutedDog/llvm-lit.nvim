@@ -56,6 +56,10 @@ cmd('LlvmLitProjects', function() api().manage_projects() end,
 cmd('LlvmLitConfig', function() api().show_config_path() end,
   { desc = 'llvm-lit: show path to projects.json' })
 
+-- :LlvmLitDelConfig  — quick project deletion picker
+cmd('LlvmLitDelConfig', function() api().delete_project_config() end,
+  { desc = 'llvm-lit: delete a saved project configuration' })
+
 -- :LlvmLitHelp       — open the plugin help file
 cmd('LlvmLitHelp', function()
   vim.cmd('help llvm-lit')

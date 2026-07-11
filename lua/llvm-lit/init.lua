@@ -18,7 +18,8 @@
 -- The public API surface delegates to three submodules:
 --   • run  — M.run(), M.run_dump()
 --   • debug — M.debug()
---   • ui   — M.setup_project(), M.manage_projects(), M.show_config_path()
+--   • ui   — M.setup_project(), M.manage_projects(), M.delete_project_config(),
+--     M.show_config_path()
 -- =============================================================================
 
 local config  = require('llvm-lit.config')
@@ -163,8 +164,9 @@ end
 -- Re-exports for the command definitions in plugin/llvm-lit.lua
 -- ---------------------------------------------------------------------------
 
-M.setup_project    = ui.setup_project
-M.manage_projects  = ui.manage_projects
-M.show_config_path = ui.show_config_path
+M.setup_project         = ui.setup_project
+M.manage_projects       = ui.manage_projects
+M.show_config_path      = ui.show_config_path
+M.delete_project_config = ui.delete_project_config
 
 return M

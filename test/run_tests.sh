@@ -11,7 +11,28 @@
 # =============================================================================
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Resolve the script's absolute directory first.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Guard: verify we're pointing at the real project root.
+if ! [ -f "$ROOT/lua/llvm-lit/init.lua" ]; then
+  echo "ERROR: cannot find the project root."
+  echo "  Expected lua/llvm-lit/init.lua under: $ROOT"
+  echo ""
+  echo "  Please run this script from the project root directory:"
+  echo "    bash test/run_tests.sh"
+  exit 1
+fi
+
+if [ "$(pwd)" != "$ROOT" ]; then
+  echo "This script must be run from the project root directory."
+  echo "  Current: $(pwd)"
+  echo "  Expected: $ROOT"
+  echo ""
+  echo "  cd \"$ROOT\" && bash test/run_tests.sh"
+  exit 1
+fi
 
 # We run each test file as a separate Neovim invocation so a crash in one
 # doesn't mask failures in another. Each returns 0 on success, 1 on failure.
@@ -56,11 +77,16 @@ for test_file in "${TESTS[@]}"; do
   total_passed=$((total_passed + passed))
   total_failed=$((total_failed + failed))
 
-  if echo "$result" | grep -qE '(error|E\d+:)' && ! echo "$result" | grep -qE 'E886:'; then
-    # Real Neovim Lua error (ignore benign ShaDa E886 in sandboxed runs).
+  if echo "$result" | grep -qE 'Error detected|E[0-9]+:' \
+    && ! echo "$result" | grep -qE 'E886:' \
+    && ! echo "$result" | grep -qF 'nvim-dap is not installed'; then
+    # Real Neovim Lua error (ignore benign errors):
+    #   - E886: sandbox ShaDa write denied
+    #   - nvim-dap not installed: expected failure in test_debug
     printf '  ⚠ Lua error detected in %s\n' "$test_name"
     fail_count=$((fail_count + 1))
   elif [ "$failed" -gt 0 ]; then
+    printf '  ⚠ Lua error detected in %s\n' "$test_name"
     fail_count=$((fail_count + 1))
   fi
 done
@@ -70,6 +96,9 @@ printf '  Total:  %d passed, %d failed\n' "$total_passed" "$total_failed"
 printf '═══════════════════════════════════════\n'
 
 if [ "$fail_count" -gt 0 ]; then
+  echo "Test failures detected. Please check the output above."
   exit 1
 fi
+
+echo "All tests passed."
 exit 0
